@@ -69,17 +69,15 @@ class Connect4:
 
 class Connect4GameState(GameState):
     
-    def __init__(self, state, player, terminal):
+    def __init__(self, state, terminal):
         super(Connect4GameState, self).__init__()
         self.state = state
-        self.player = player
         self.terminal = terminal or not self.state.availableColumns()
         if terminal:
-            if player == state.token:
-                self.outcome = OUTCOME_LOSS
-            else:
-                self.outcome = OUTCOME_WIN
+            # Previous player WON, this layer LOST
+            self.outcome = OUTCOME_LOSS
         elif self.terminal:
+            # Previous player didn't end game but there are no more moves
             self.outcome = OUTCOME_DRAW
 
     def freedoms(self):
@@ -97,10 +95,12 @@ class Connect4GameState(GameState):
     def createChild(self, freedom):
         column = self._freedomToColumn(freedom)
         new_state = self.state.dropToken(column)
-        return Connect4GameState(new_state, self.player, new_state.checkWin(column))
+        return Connect4GameState(new_state, new_state.checkWin(column))
 
-    def tensor(self):
-        return self.state.tensor()
+    def readChildOutcome(self, child):
+        # Flip wins and losses because child is the opposite player
+        wins, draws, losses = child.outcome
+        return Outcome(wins = losses, draws = draws, losses = wins)
 
     def getChildByColumn(self, column):
         return self.getChildByFreedom(self._columnToFreedom(column))
@@ -114,7 +114,7 @@ class Connect4GameState(GameState):
 
 
 def play_X():
-    game_state = Connect4GameState(Connect4(token = Connect4.X), Connect4.O, False)
+    game_state = Connect4GameState(Connect4(token = Connect4.X), terminal = False)
     strategy = RandomGameStrategy(5000)
 
     print(game_state.state)
@@ -136,7 +136,7 @@ def play_X():
         game_state.print_choices()
         freedom, game_state = strategy.move(game_state)
         print(game_state.state)
-        if game_state.terminal and game_state.outcome.wins > 0:
+        if game_state.terminal and game_state.outcome.losses > 0:
             print('Congratuations, O! You won!')
             break
 
@@ -147,13 +147,13 @@ def play_comp():
 
     print(game_state.state)
     while True:
-        for attr, token in [('wins', Connect4.X), ('losses', Connect4.O)]:
+        for token in [Connect4.X, Connect4.O]:
             strategy.explore(game_state)
             game_state.print_choices()
-            freedom, game_state = strategy.move(game_state, attr)
+            freedom, game_state = strategy.move(game_state)
             print(game_state.state)
             if game_state.terminal:
-                if getattr(game_state.outcome, attr) > 0:
+                if game_state.outcome.losses > 0:
                     print('Congratuations, {}! You won!'.format(token))
                     return token
                 else:

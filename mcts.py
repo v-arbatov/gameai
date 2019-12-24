@@ -31,6 +31,11 @@ class GameState:
         # Create child GameState for a particular move.
         raise ENotImplementedError
 
+    def readChildOutcome(self, child):
+        # Allow to reinterpret child outcome for turn based games where child win is the parent loss.
+        # By default returning child outcome as is.
+        return child.outcome
+
     def tensors(self):
         # Return game state as a list of 3D numpy tensors
         raise ENotImplementedError
@@ -44,7 +49,7 @@ class GameState:
         if freedom not in self.explored:
             ch = self.createChild(freedom)
             # New child state might be a leaf node, update stats if that's the case.
-            self.outcome = Outcome(*(x + y for x, y in zip(self.outcome, ch.outcome)))
+            self.outcome = Outcome(*(x + y for x, y in zip(self.outcome, self.readChildOutcome(ch))))
             self.explored[freedom] = ch
             return ch
         else:
@@ -54,13 +59,12 @@ class GameState:
         # Explore single move using given strategy
 
         ch = self.getChildByFreedom(freedom)
-        original_outcome = ch.outcome
+        original_outcome = self.readChildOutcome(ch)
 
         strategy.exploreMove(ch)
 
-        if not (ch.outcome is original_outcome):
-            # Update outcome by the change in the child outcome
-            self.outcome = Outcome(*(x + y - z for x, y, z in zip(self.outcome, ch.outcome, original_outcome)))
+        # Update outcome by the change in the child outcome
+        self.outcome = Outcome(*(x + y - z for x, y, z in zip(self.outcome, self.readChildOutcome(ch), original_outcome)))
 
 
 class GameStrategy:
@@ -78,9 +82,8 @@ class GameStrategy:
         # Recursive exploration from GameState
         raise ENotImplementedError
 
-    def move(self, game_state, maximize='wins'):
+    def move(self, game_state):
         # Pick a move from available game_state moves and return new tuple: (freedom, new_game_state).
-        assert maximize in Outcome._fields
         raise ENotImplementedError
 
 
@@ -103,12 +106,13 @@ class RandomGameStrategy(GameStrategy):
         for i in range(self.tryouts):
             self.exploreMove(game_state)
 
-    def move(self, game_state, maximize='wins'):
-        t = 2 * math.log(sum(sum(x.outcome) for x in game_state.explored.values()))
+    def move(self, game_state):
+        t = 2 * math.log(sum(sum(game_state.readChildOutcome(x)) for x in game_state.explored.values()))
         best = None
         for freedom, state in game_state.explored.items():
-            n = sum(state.outcome)
-            cost = getattr(state.outcome, maximize) / n + math.sqrt(t / n)
+            outcome = game_state.readChildOutcome(state)
+            n = sum(outcome)
+            cost = outcome.wins / n + math.sqrt(t / n)
             if best is None or best_cost < cost:
                 best = state
                 best_cost = cost
