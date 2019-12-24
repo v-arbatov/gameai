@@ -5,6 +5,7 @@ from mcts import *
 
 
 class Connect4:
+    """Connect 4 Game State"""
 
     # Token symbols
     X = 'X'
@@ -15,8 +16,9 @@ class Connect4:
     ROWS = 6
 
     def __init__(self, token = 'X', board = collections.defaultdict(list)):
-        # Player whos turn it is
+        # Player whos turn this is.
         self.token = token
+        # Current game board: dictionary, map from column index to list of tokens from bottom to the top.
         self.board = board
 
     def availableColumns(self):
@@ -68,8 +70,9 @@ class Connect4:
 
 
 class Connect4GameState(GameState):
-    
-    def __init__(self, state, terminal):
+    """Connect 4 game state for Monte Carlo Tree Search"""
+
+    def __init__(self, state, terminal = False):
         super(Connect4GameState, self).__init__()
         self.state = state
         self.terminal = terminal or not self.state.availableColumns()
@@ -113,11 +116,13 @@ class Connect4GameState(GameState):
 
 
 
-def play_X():
-    game_state = Connect4GameState(Connect4(token = Connect4.X), terminal = False)
-    strategy = RandomGameStrategy(5000)
+def play_X(complexity = 5000):
+    """Play for X, MCTS plays for O"""
+    game_state = Connect4GameState(Connect4(token = Connect4.X))
+    strategy = RandomGameStrategy(complexity)
 
     print(game_state.state)
+
     while True:
         token = game_state.state.token
         while True:
@@ -141,9 +146,9 @@ def play_X():
             break
 
 
-def play_comp():
-    game_state = Connect4GameState(Connect4(token = Connect4.X), Connect4.X, False)
-    strategy = RandomGameStrategy(2500)
+def play_comp(complexity = 1000):
+    game_state = Connect4GameState(Connect4(token = Connect4.X))
+    strategy = RandomGameStrategy(complexity)
 
     print(game_state.state)
     while True:
