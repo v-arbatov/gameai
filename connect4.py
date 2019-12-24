@@ -114,7 +114,7 @@ class Connect4GameState(GameState):
 
 
 def play_X():
-    game_state = Connect4GameState(Connect4(token='X'), 'O', False)
+    game_state = Connect4GameState(Connect4(token = Connect4.X), Connect4.O, False)
     strategy = RandomGameStrategy(5000)
 
     print(game_state.state)
@@ -142,12 +142,12 @@ def play_X():
 
 
 def play_comp():
-    game_state = Connect4GameState(Connect4(token='X'), 'X', False)
+    game_state = Connect4GameState(Connect4(token = Connect4.X), Connect4.X, False)
     strategy = RandomGameStrategy(2500)
 
     print(game_state.state)
     while True:
-        for attr, token in [('wins', 'X'), ('losses', 'O')]:
+        for attr, token in [('wins', Connect4.X), ('losses', Connect4.O)]:
             strategy.explore(game_state)
             game_state.print_choices()
             freedom, game_state = strategy.move(game_state, attr)
