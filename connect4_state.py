@@ -1,6 +1,7 @@
 import sys
 import collections
 import mcts
+import numpy as np
 
 class Connect4:
     """Connect 4 Game State"""
@@ -87,6 +88,32 @@ class Connect4GameState(mcts.GameState):
             return 0
         return len(self.state.availableColumns())
 
+    def tensors(self):
+        # Returns current state tensor
+        result = np.zeros([self.state.COLUMNS, self.state.ROWS, 2], dtype=float)
+        choice = np.zeros([self.state.COLUMNS, self.state.ROWS, 1], dtype=float)
+        outcomes = [self.readChildOutcome(self.getChildByColumn(column)).wins for column in range(self.state.COLUMNS)]
+        max_win = max(outcomes)
+        if max_win > 0:
+            outcomes = [x / max_win for x in outcomes]
+        for column in range(self.state.COLUMNS):
+            rows = len(self.state.board[column])
+            for row in range(rows):
+                if self.state.board[column][row] == self.state.token:
+                    # This token
+                    result[column][row][0] = 1
+                else:
+                    # Opponent's token
+                    result[column][row][0] = -1
+            if rows < self.state.ROWS:
+                # Available move
+                result[column][rows][1] = 1
+                choice[column][rows][0] =  outcomes[column]
+        return ([result], choice)
+
+#    @staticmethod
+#    def model(cls):
+        
     def _freedomToColumn(self, freedom):
         return self.state.availableColumns()[freedom]
 
@@ -102,6 +129,14 @@ class Connect4GameState(mcts.GameState):
         # Flip wins and losses because child is the opposite player
         wins, draws, losses = child.outcome
         return mcts.Outcome(wins = losses, draws = draws, losses = wins)
+
+    def incrementOutcome(self, child, delta):
+        # Increment outcome for this state by delta outcome for the child state.
+        # Returns delta applied to this game state.
+        wins, draws, losses = delta
+        delta = mcts.Outcome(wins = losses, draws = draws, losses = wins)
+        self.outcome = mcts.Outcome(*(x + y for x, y in zip(self.outcome, delta)))
+        return delta
 
     def getChildByColumn(self, column):
         return self.getChildByFreedom(self._columnToFreedom(column))

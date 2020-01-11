@@ -1,11 +1,12 @@
-from mcts import RandomGameStrategy
+import collections
+from mcts import RandomGameStrategy, UCTGameStrategy
 from connect4_state import Connect4, Connect4GameState
 
 
 def play_X(complexity = 5000):
     """Play for X, MCTS plays for O"""
     game_state = Connect4GameState(Connect4(token = Connect4.X))
-    strategy = RandomGameStrategy(complexity)
+    strategy = UCTGameStrategy(complexity)
 
     print(game_state.state)
 
@@ -19,6 +20,7 @@ def play_X(complexity = 5000):
 
         game_state = game_state.getChildByColumn(column)
         print(game_state.state)
+        #print(game_state.tensors())
         if game_state.state.checkWin(column):
             print('Congratuations, {}! You won!'.format(token))
             break
@@ -34,7 +36,7 @@ def play_X(complexity = 5000):
 
 def play_comp_comp(complexity = 1000):
     game_state = Connect4GameState(Connect4(token = Connect4.X))
-    strategy = RandomGameStrategy(complexity)
+    strategy = UCTGameStrategy(complexity)
 
     print(game_state.state)
     while True:
@@ -63,6 +65,6 @@ def play_comp_comp_games(count = 100, complexity = 1000):
 
 ##########################
 
-play_X()
+play_X(2500)
 # play_comp_comp()
-
+#play_comp_comp_games(count = 10, complexity = 5000)

@@ -36,6 +36,12 @@ class GameState:
         # By default returning child outcome as is.
         return child.outcome
 
+    def incrementOutcome(self, child, delta):
+        # Increment outcome for this state by delta outcome for the child state.
+        # Returns delta applied to this game state.
+        self.outcome = Outcome(*(x + y for x, y in zip(self.outcome, delta)))
+        return delta
+
     def tensors(self):
         # Return game state as a list of 3D numpy tensors
         raise ENotImplementedError
@@ -47,24 +53,8 @@ class GameState:
     def getChildByFreedom(self, freedom):
         # Get explored child game state for the move or create new one.
         if freedom not in self.explored:
-            ch = self.createChild(freedom)
-            # New child state might be a leaf node, update stats if that's the case.
-            self.outcome = Outcome(*(x + y for x, y in zip(self.outcome, self.readChildOutcome(ch))))
-            self.explored[freedom] = ch
-            return ch
-        else:
-            return self.explored[freedom]
-        
-    def exploreMove(self, strategy, freedom):
-        # Explore single move using given strategy
-
-        ch = self.getChildByFreedom(freedom)
-        original_outcome = self.readChildOutcome(ch)
-
-        strategy.exploreMove(ch)
-
-        # Update outcome by the change in the child outcome
-        self.outcome = Outcome(*(x + y - z for x, y, z in zip(self.outcome, self.readChildOutcome(ch), original_outcome)))
+            self.explored[freedom] = self.createChild(freedom)
+        return self.explored[freedom]
 
 
 class GameStrategy:
@@ -78,13 +68,33 @@ class GameStrategy:
         # Explore plays
         raise ENotImplementedError
 
-    def exploreMove(self, game_state):
-        # Recursive exploration from GameState
+    def chooseMove(self, game_state):
+        # Return best move freedom index for the <game_state> during play
         raise ENotImplementedError
+
+    def rolloutMove(self, game_state):
+        # Return best move freedom index for the <game_state> during rollout
+        return self.chooseMove(game_state)
 
     def move(self, game_state):
         # Pick a move from available game_state moves and return new tuple: (freedom, new_game_state).
-        raise ENotImplementedError
+        freedom = self.chooseMove(game_state)
+        return freedom, game_state.getChildByFreedom(freedom)
+
+    def rollout(self, game_state):
+        # Rollout game play, assume small depth for now
+        stack = [game_state]
+        freedoms = game_state.freedoms()
+        while freedoms:
+            stack.append(stack[-1].getChildByFreedom(self.rolloutMove(stack[-1])))
+            freedoms = stack[-1].freedoms()
+
+        # Update outcome
+        delta = Outcome(*(min(1, x) for x in stack[-1].outcome))
+        child = stack[-1]
+        for item in reversed(stack[:-1]):
+            delta = item.incrementOutcome(child, delta)
+            child = item
 
 
 class RandomGameStrategy(GameStrategy):
@@ -95,18 +105,18 @@ class RandomGameStrategy(GameStrategy):
     def __init__(self, tryouts):
         self.tryouts = tryouts
 
-    def exploreMove(self, game_state):
-        # Just executing random moves without considering odds of each move to happen
-        freedoms = game_state.freedoms()
-        if freedoms:
-            game_state.exploreMove(self, random.randint(0, freedoms-1))
-
     def explore(self, game_state):
         # On the first explore call try a number of random plays
         for i in range(self.tryouts):
-            self.exploreMove(game_state)
+            self.rollout(game_state)
 
-    def move(self, game_state):
+    def rolloutMove(self, game_state):
+        freedoms = game_state.freedoms()
+        if freedoms:
+            return random.randint(0, freedoms - 1)
+        return None
+
+    def chooseMove(self, game_state):
         t = 2 * math.log(sum(sum(game_state.readChildOutcome(x)) for x in game_state.explored.values()))
         best = None
         for freedom, state in game_state.explored.items():
@@ -114,8 +124,37 @@ class RandomGameStrategy(GameStrategy):
             n = sum(outcome)
             cost = outcome.wins / n + math.sqrt(t / n)
             if best is None or best_cost < cost:
-                best = state
+                best = freedom
                 best_cost = cost
-                best_freedom = freedom
-        return best_freedom, best
+        return best
+
+
+class UCTGameStrategy(GameStrategy):
+    """ Random play strategy.
+
+        Playing <tryouts> random games.
+    """
+    def __init__(self, tryouts):
+        self.tryouts = tryouts
+
+    def explore(self, game_state):
+        # On the first explore call try a number of random plays
+        for i in range(self.tryouts):
+            self.rollout(game_state)
+
+    def chooseMove(self, game_state):
+        freedoms = game_state.freedoms()
+        outcomes = [game_state.readChildOutcome(game_state.getChildByFreedom(i)) for i in range(freedoms)]
+        total = 1 + sum(sum(x) for x in outcomes)
+        t = 2 * math.log(total)
+        best = []
+        for freedom, state in enumerate(outcomes):
+            n = 1 + sum(outcomes[freedom])
+            cost = (outcomes[freedom].wins - outcomes[freedom].losses) / n + math.sqrt(t / n)
+            if not best or best_cost < cost:
+                best = [freedom]
+                best_cost = cost
+            elif best_cost == cost:
+                best.append(freedom)
+        return best[random.randint(0, len(best)-1)]
 
